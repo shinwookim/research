@@ -1,0 +1,3 @@
+[submodule "LLMSpeculativeSampling"]
+	path = LLMSpeculativeSampling
+	url = https://github.com/feifeibear/LLMSpeculativeSampling
