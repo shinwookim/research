@@ -1,0 +1,26 @@
+---
+title: "Speculative Decoding"
+author: "Shinwoo Kim"
+date: "2024-04-08"
+output: github_document
+---
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+
+df <- read_csv("cleaned_results.csv")
+```
+
+```{r}
+df
+```
+
+```{r}
+df_long <- df %>% pivot_longer(-c(prompt, draft_model), names_to = "variable", values_to = "value")
+df_long
+```
+
+```{r}
+df_long %>% select(value='latency') 
+```
