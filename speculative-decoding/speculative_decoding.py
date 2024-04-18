@@ -1,5 +1,5 @@
 import torch
-from tqdm import tqdm
+import time
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from torch.nn import functional as F
 from colorama import Fore, Style
@@ -80,7 +80,6 @@ def speculative_decoding(
     approx_model: torch.nn.Module,
     target_model: torch.nn.Module,
     max_len: int,
-    decoder,
     gamma: int = 4,
     temperature: float = 1,
     top_k: int = 0,
@@ -110,17 +109,20 @@ def speculative_decoding(
 
     tokens_generated = 0
     tokens_accepted = 0
+    draft_time = 0
+    verify_time = 0
 
     assert prefix.shape[0] == 1, "input batch size must be 1"
 
-    # with tqdm(total=T, desc="speculative sampling") as pbar:
     while prefix.shape[1] < T:
         # q = M_q[prefix + x_0, x_1, .., x_(gamma-2)]
         x = prefix
         prefix_len = prefix.shape[1]
         for _ in range(gamma):
             # p.logits shape (batch, seq, vocab)
+            draft_begin = time.time()
             q = approx_model(x).logits
+            draft_time = draft_time + (time.time() - draft_begin) 
             next_tok = sample(norm_logits(q[:, -1, :], temperature, top_k, top_p))
             x = torch.cat((x, next_tok), dim=1)
         tokens_generated = tokens_generated + gamma
@@ -129,7 +131,9 @@ def speculative_decoding(
         for i in range(q.shape[1]):
             q[:, i, :] = norm_logits(q[:, i, :], temperature, top_k, top_p)
         # p  = M_p[prefix + x_0, x_0, .., x_(gamma-1)]
+        verify_begin = time.time()
         p = target_model(x).logits
+        verify_time = verify_time + (time.time() - verify_begin)
         for i in range(p.shape[1]):
             p[:, i, :] = norm_logits(p[:, i, :], temperature, top_k, top_p)
 
@@ -161,8 +165,7 @@ def speculative_decoding(
             t = sample(p[:, -1, :])
 
         prefix = torch.cat((prefix, t), dim=1)
-        # pbar.update(n - pbar.n)
-    return (prefix, (tokens_accepted / tokens_generated))
+    return (prefix, (tokens_accepted / tokens_generated), draft_time, verify_time)
 
 
 @torch.no_grad()
